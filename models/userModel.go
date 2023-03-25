@@ -6,6 +6,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+// User is the struct that will be used to store user data in the usercollection.
 type User struct {
 	ID           primitive.ObjectID `bson: "_id"`
 	Username     *string            `json: "username" validate:"required,min=2,max=100"`
@@ -16,20 +17,12 @@ type User struct {
 	CreatedAt    time.Time		    `json: "createdat"`
 	UpdatedAt 	 time.Time		    `json: "updatedat"`
 }
-
+// UserTokens is the struct that will be used to store user tokens in the usertokens collection.
 type UserTokens struct {
-	ID         primitive.ObjectID `bson:"_id"`
-	UserID     string            `json:"userid"`
-	Token         *string		  `json: "token"`
-	RefreshToken *string 	 	  `json: "refreshtoken"`
-	CreatedAt   time.Time          `json:"createdat"`
-	UpdatedAt   time.Time          `json:"updatedat"`
-}
-
-
-type Organization struct {
-	ID        primitive.ObjectID `bson:"_id"`
-	Name      *string            `json:"name" validate:"required,min=2,max=100"`
-	CreatedAt time.Time          `json:"createdat"`
-	UpdatedAt time.Time          `json:"updatedat"`
+	ID           primitive.ObjectID `bson:"_id"`
+	UserID       string             `json:"userid"`
+	Token        *string		    `json: "token"`
+	RefreshToken *string 	 	    `json: "refreshtoken"`
+	CreatedAt    time.Time          `json:"createdat"`
+	UpdatedAt    time.Time          `json:"updatedat"`
 }

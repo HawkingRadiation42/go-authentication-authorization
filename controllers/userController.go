@@ -8,9 +8,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/HousewareHQ/backend-engineering-octernship/internal/app/_your_app_/database"
-	helper "github.com/HousewareHQ/backend-engineering-octernship/internal/app/_your_app_/helpers"
-	"github.com/HousewareHQ/backend-engineering-octernship/internal/app/_your_app_/models"
+	"github.com/HousewareHQ/backend-engineering-octernship/internal/app/auth/database"
+	helper "github.com/HousewareHQ/backend-engineering-octernship/internal/app/auth/helpers"
+	"github.com/HousewareHQ/backend-engineering-octernship/internal/app/auth/models"
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 	"golang.org/x/crypto/bcrypt"
@@ -23,8 +23,7 @@ import (
 
 var userCollection *mongo.Collection = database.OpenCollection(database.Client, "users")
 var userTokenCollection *mongo.Collection = database.OpenCollection(database.Client, "usertokens") 
-var orgCollection *mongo.Collection = database.OpenCollection(database.Client, "organization")
-var validate = validator.New()
+var validate = validator.New() // validator for the user model 
 
 
 func Signup() gin.HandlerFunc {
@@ -262,8 +261,6 @@ func Logout() gin.HandlerFunc {
 	}
 }
 
-// check the organization id in the url and the organization id in the token
-// if they are not the same, return an error
 func AddUserToOrg() gin.HandlerFunc{
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second) // create a context with a timeout
@@ -368,16 +365,16 @@ func AddUserToOrg() gin.HandlerFunc{
 func DeleteUserFromOrg() gin.HandlerFunc{
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
-		defer cancel()
-		println("demo")
-		var user models.User
-		var foundUser models.User
 
-		userID := c.Param("userId") // get the user_id from the url
+		// var user models.User
+		var user models.User
+
+		userID := c.Query("userId") // get the user_id from the query params
 		if userID == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "User ID not provided"})
 			return
 		}
+		
 		//below code is to extract the org_id from the token
 		clientToken:= c.Request.Header.Get("token") // get the token from the request header
 		claims, msg := helper.ValidateToken(clientToken) // validate the token
@@ -385,28 +382,24 @@ func DeleteUserFromOrg() gin.HandlerFunc{
 			c.JSON(401, gin.H{"error": msg})
 			return
 		}
-		if claims.Uid != userID {
-			c.JSON(http.StatusForbidden, gin.H{"error": "Unauthorized to access this resource"})
-			return
-		}
 		if msg != ""{
 			c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
 			c.Abort()
 			return 
 		}
-		user.OrgID = claims.Orgid // set the org_id of the user to the org_id in the token
 		// below code is to find the user in the database which has the same org_id and user_id as the one in the url and in the token
-		err := userCollection.FindOne(ctx, bson.M{"orgid": user.OrgID, "userid": userID}).Decode(&foundUser)
-		
-		if foundUser.Username == nil{
+		err := userCollection.FindOne(ctx, bson.M{"orgid": claims.Orgid, "userid": userID}).Decode(&user)
+		// if the user is not found, return an error
+		defer cancel()
+		if user.Username == nil{
 			c.JSON(http.StatusBadRequest, gin.H{"error": "wrong userID or the user doesn't belong in your organization"})
 			return
 		}
-		// if the user is not found, return an error
 		if err != nil{
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "User not found"})
 			return
 		}
+		
 		// delete the user from the user collection
 		_, err = userCollection.DeleteOne(ctx, bson.M{"userid": userID})
 		if err != nil {
@@ -422,3 +415,31 @@ func DeleteUserFromOrg() gin.HandlerFunc{
 		c.JSON(http.StatusOK, gin.H{"message": "User deleted successfully"})
 	}
 }
+
+// func RefreshAccessToken() gin.HandlerFunc{
+// 	return func(c *gin.Context){
+// 		refreshToken := c.Request.Header.Get("refreshtoken") // get the refresh token from the request header 
+// 		if refreshToken == "" {
+// 			c.JSON(http.StatusBadRequest, gin.H{"error": "Refresh token not provided"})
+// 			return
+// 		}
+
+// 		claims, err := helper.ValidateToken(refreshToken) // validate the refresh token
+// 		if err != "" {
+// 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid refresh token"})
+// 			return
+// 		}
+
+// 		// check if refresh token is expired 
+// 		if time.Now().Unix() > claims.ExpiresAt {
+// 			c.JSON(http.StatusBadRequest, gin.H{"error": "Refresh token expired"})
+// 			return
+// 		}
+// 		newAccessToken, err := helper.GenerateAccessToken(*claims.Username, *&claims.UserID, *&claims.OrgID, *&claims.UserType) // generate a new access token
+// 		if err != nil {
+// 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate access token"})
+// 			return
+// 		}
+// 		c.JSON(http.StatusOK, gin.H{"accessToken": newAccessToken})
+// 	}
+// }

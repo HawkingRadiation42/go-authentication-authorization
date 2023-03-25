@@ -1,7 +1,7 @@
 package routes
 
 import (
-	controller "github.com/HousewareHQ/backend-engineering-octernship/internal/app/_your_app_/controllers"
+	controller "github.com/HousewareHQ/backend-engineering-octernship/internal/app/auth/controllers"
 	"github.com/gin-gonic/gin"
 )
 

@@ -4,43 +4,21 @@ import (
 	"context"
 	"errors"
 
-	models "github.com/HousewareHQ/backend-engineering-octernship/internal/app/_your_app_/models"
+	models "github.com/HousewareHQ/backend-engineering-octernship/internal/app/auth/models"
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-// var userTokenCollection *mongo.Collection = database.OpenCollection(database.Client, "usertokens")
-
-// func CheckUserType(c *gin.Context, role string)(err error){
-// 	userType := c.GetString("user_type")
-// 	err = nil
-
-// 	if userType != role {
-// 		err = errors.New("Unauthorized to access this resource")
-// 		return err
-// 	}
-// 	return err
-// }
-
-// func MatchUserTypeToUid(c *gin.Context, userId string)(err error){
-// 	userType := c.GetString("user_type")
-// 	uid := c.GetString("uid")
-// 	err = nil
-
-// 	if userType == "USER" && uid != userId {
-// 		err = errors.New("Unauthorized to access this resource")
-// 		return err
-// 	}
-// 	err = CheckUserType(c, userType)
-// 	return err
-// }
-
+// MatchClientTokenToUserToken function compares the client token with the user token stored in the database for a given user ID.
 func MatchClientTokenToUserToken(userid string, clientToken string) error {
 	var user models.UserTokens
 	filter := bson.M{"userid": userid}
 	err := userTokenCollection.FindOne(context.Background(), filter).Decode(&user)
+	// if the token is not found in the database, return an error
 	if err != nil {
 		return err
 	}
+	// The function returns an error if the user session is logged out, otherwise it returns nil.
+
 	if *user.Token != clientToken{
 		return errors.New("user session logged out, you need to login")
 	}
