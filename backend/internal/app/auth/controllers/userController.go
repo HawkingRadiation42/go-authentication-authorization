@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/HousewareHQ/backend-engineering-octernship/internal/app/auth/database"
@@ -23,8 +24,50 @@ import (
 
 var userCollection *mongo.Collection = database.OpenCollection(database.Client, "users")
 var userTokenCollection *mongo.Collection = database.OpenCollection(database.Client, "usertokens") 
-var validate = validator.New() // validator for the user model 
+var validate = validator.New() // validator for the user model
 
+
+func isValidPassword(password string) bool {
+    if len(password) < 8 {
+        return false
+    }
+    hasUpperCase := false
+    hasLowerCase := false
+    hasDigit := false
+    hasSpecialChar := false
+    for _, ch := range password {
+        switch {
+        case 'A' <= ch && ch <= 'Z':
+            hasUpperCase = true
+        case 'a' <= ch && ch <= 'z':
+            hasLowerCase = true
+        case '0' <= ch && ch <= '9':
+            hasDigit = true
+        case strings.ContainsAny(string(ch), "!@#$%^&*"):
+            hasSpecialChar = true
+        }
+    }
+    return hasUpperCase && hasLowerCase && hasDigit && hasSpecialChar
+}
+func HashPassword(password string) (string, error) {
+	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14) // generate a hashed password
+	if err != nil {
+		log.Panic(err)
+	}
+	return string(bytes), err
+}
+
+func VerifyPassword(userPassword string, providedPassword string)(bool, string){
+	err := bcrypt.CompareHashAndPassword([]byte(providedPassword), []byte(userPassword)) // compare the hashed password with the provided password
+	check := true
+	msg := ""
+	
+	if err!= nil {
+		msg = fmt.Sprintf("Username or password is incorrect")
+		check=false
+	}
+	return check, msg
+}
 
 func Signup() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -113,26 +156,6 @@ func Signup() gin.HandlerFunc {
 			"userTokensInsertionNumber": resultInsertionNumberUserTokens,
 		})
 	}
-}
-
-func HashPassword(password string) (string, error) {
-	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14) // generate a hashed password
-	if err != nil {
-		log.Panic(err)
-	}
-	return string(bytes), err
-}
-
-func VerifyPassword(userPassword string, providedPassword string)(bool, string){
-	err := bcrypt.CompareHashAndPassword([]byte(providedPassword), []byte(userPassword)) // compare the hashed password with the provided password
-	check := true
-	msg := ""
-	
-	if err!= nil {
-		msg = fmt.Sprintf("Username or password is incorrect")
-		check=false
-	}
-	return check, msg
 }
 
 func Login() gin.HandlerFunc{
@@ -293,7 +316,12 @@ func AddUserToOrg() gin.HandlerFunc{
 			c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Error()})
 			return
 		}
-		
+		// below code is to check if the password contains atleast one alphabet, one number and one special character
+		if !isValidPassword(*user.Password) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Password is invalid, create a new password with at least one uppercase and lowercase alphabet, one number, and one special character from the set !@#$%^&* and minimum length of 8 characters"})
+			return 
+		}
+
 		// hash the password and unit testing 
 		password, err := HashPassword(*user.Password) 
 		user.Password = &password
@@ -416,30 +444,36 @@ func DeleteUserFromOrg() gin.HandlerFunc{
 	}
 }
 
-// func RefreshAccessToken() gin.HandlerFunc{
-// 	return func(c *gin.Context){
-// 		refreshToken := c.Request.Header.Get("refreshtoken") // get the refresh token from the request header 
-// 		if refreshToken == "" {
-// 			c.JSON(http.StatusBadRequest, gin.H{"error": "Refresh token not provided"})
-// 			return
-// 		}
+func RefreshAccessToken() gin.HandlerFunc{
+	return func(c *gin.Context){
+		var user models.User
+		refreshToken := c.Request.Header.Get("refreshtoken") // get the refresh token from the request header 
+		if refreshToken == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Refresh token not provided"})
+			return
+		}
 
-// 		claims, err := helper.ValidateToken(refreshToken) // validate the refresh token
-// 		if err != "" {
-// 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid refresh token"})
-// 			return
-// 		}
+		claims, err := helper.ValidateToken(refreshToken) // validate the refresh token
+		if err != "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid refresh token"})
+			return
+		}
+		// check if refresh token is expired 
+		if time.Now().Unix() > claims.ExpiresAt {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Refresh token expired"})
+			return
+		}
+		user.Username = &claims.Username
+		user.UserID = claims.Uid
+		user.OrgID = claims.Orgid
+		user.UserType = claims.UserType
 
-// 		// check if refresh token is expired 
-// 		if time.Now().Unix() > claims.ExpiresAt {
-// 			c.JSON(http.StatusBadRequest, gin.H{"error": "Refresh token expired"})
-// 			return
-// 		}
-// 		newAccessToken, err := helper.GenerateAccessToken(*claims.Username, *&claims.UserID, *&claims.OrgID, *&claims.UserType) // generate a new access token
-// 		if err != nil {
-// 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate access token"})
-// 			return
-// 		}
-// 		c.JSON(http.StatusOK, gin.H{"accessToken": newAccessToken})
-// 	}
-// }
+		NewAccessToken, _, errr := helper.GenerateAllTokens(*user.Username, *&user.UserID, *&user.OrgID, *&user.UserType) // generate a new access token
+		if errr != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate access token"})
+			return
+		}
+		helper.UpdateAllTokens(NewAccessToken, refreshToken, user.UserID)
+		c.JSON(http.StatusOK, gin.H{"accessToken": NewAccessToken})
+	}
+}

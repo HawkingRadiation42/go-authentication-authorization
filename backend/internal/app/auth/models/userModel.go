@@ -10,7 +10,7 @@ import (
 type User struct {
 	ID           primitive.ObjectID `bson: "_id"`
 	Username     *string            `json: "username" validate:"required,min=2,max=100"`
-	Password     *string  		    `json: "password" validate:"required,min=8,max=100,regexp=^(?=.*[A-Z])(?=.*[!@#$&*])(?=.*[0-9]).*$"`
+	Password     *string  		    `json: "password" validate:"required,min=8,max=100,regexp=^(?=.*[a-zA-Z])(?=.*[!@#$&*])(?=.*[0-9]).{8,100}$"`
 	UserID       string 		    `json: "userid"`
 	UserType     string             `json: "usertype" validate:"required,default=USER,eq=ADMIN|eq=USER"`
 	OrgID        string             `json: "orgid"`

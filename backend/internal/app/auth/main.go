@@ -8,7 +8,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 )
-
+func API(c *gin.Context){
+	c.JSON(200, gin.H{"success": "Access granted for api-1"})
+}
 func main(){
 	// load .env file
 	err := godotenv.Load(".env")
@@ -27,11 +29,7 @@ func main(){
 	routes.AuthRoutes(router)
 	routes.UserRoutes(router)
 	routes.AdminRoutes(router)
-	
-	// this is a public route
-  	router.GET("/api-1", func(c *gin.Context){
-    	c.JSON(200, gin.H{"success": "Access granted for api-1"})
-  	})
-	
+	router.GET("/api-1", API)
+
 	router.Run(":" + port)
 }
